@@ -5,6 +5,14 @@
 #include <map>
 #include <cmath>
 
+struct NodoExpresion {
+    std::string valor;
+    NodoExpresion* izquierda;
+    NodoExpresion* derecha;
+
+    NodoExpresion(const std::string& val) : valor(val), izquierda(nullptr), derecha(nullptr) {}
+};
+
 bool esOperador(char c) {
     return (c == '+' || c == '-' || c == '*' || c == '/' || c == '^');
 }
@@ -63,56 +71,73 @@ std::string notacionFijaAPostfija(const std::string& expresion) {
     return salida;
 }
 
-double resolverPostfija(const std::string& expresion, const std::map<std::string, double>& variables) {
-    std::stack<double> pila;
+NodoExpresion* construirArbol(const std::string& expresion) {
+    std::stack<NodoExpresion*> pila;
     std::istringstream entrada(expresion);
     std::string elemento;
 
     while (entrada >> elemento) {
-        if (isdigit(elemento[0]) || (elemento[0] == '.' && isdigit(elemento[1]))) {
-            pila.push(std::stod(elemento));
-        } else if (variables.find(elemento) != variables.end()) {
-            pila.push(variables.at(elemento));
-        } else if (elemento == "x") {
-            pila.push(variables.at("x"));
+        if (isdigit(elemento[0]) || (elemento[0] == '.' && isdigit(elemento[1])) || elemento == "x") {
+            NodoExpresion* nodo = new NodoExpresion(elemento);
+            pila.push(nodo);
         } else if (esOperador(elemento[0])) {
-            double operand2 = pila.top();
+            NodoExpresion* nodo = new NodoExpresion(elemento);
+            nodo->derecha = pila.top();
             pila.pop();
-            double operand1 = pila.top();
+            nodo->izquierda = pila.top();
             pila.pop();
-            double result;
-
-            switch (elemento[0]) {
-                case '+':
-                    result = operand1 + operand2;
-                    break;
-                case '-':
-                    result = operand1 - operand2;
-                    break;
-                case '*':
-                    result = operand1 * operand2;
-                    break;
-                case '/':
-                    result = operand1 / operand2;
-                    break;
-                case '^':
-                    result = std::pow(operand1, operand2);
-                    break;
-                default:
-                    // Handle any other operators if needed.
-                    break;
-            }
-
-            pila.push(result);
+            pila.push(nodo);
         }
     }
 
-    if (pila.size() == 1) {
+    if (!pila.empty()) {
         return pila.top();
     } else {
-        // Handle error, expression not properly formatted.
-        throw std::runtime_error("Invalid expression.");
+        return nullptr;
     }
+}
+
+void imprimirArbol(NodoExpresion* raiz, int nivel) {
+    if (raiz) {
+        for (int i = 0; i < nivel; i++) {
+            std::cout << "$ ";
+        }
+        std::cout << "--- " << raiz->valor << std::endl;
+
+        if (raiz->izquierda || raiz->derecha) {
+            imprimirArbol(raiz->izquierda, nivel + 1);
+            imprimirArbol(raiz->derecha, nivel + 1);
+        }
+    }
+}
+
+double resolverArbol(NodoExpresion* raiz, const std::map<std::string, double>& variables) {
+    if (!raiz) {
+        return 0.0; // Valor predeterminado
+    }
+
+    if (isdigit(raiz->valor[0]) || (raiz->valor[0] == '.' && isdigit(raiz->valor[1]))) {
+        return std::stod(raiz->valor);
+    } else if (raiz->valor == "x") {
+        return variables.at("x");
+    } else if (esOperador(raiz->valor[0])) {
+        double izquierda = resolverArbol(raiz->izquierda, variables);
+        double derecha = resolverArbol(raiz->derecha, variables);
+
+        if (raiz->valor == "+") {
+            return izquierda + derecha;
+        } else if (raiz->valor == "-") {
+            return izquierda - derecha;
+        } else if (raiz->valor == "*") {
+            return izquierda * derecha;
+        } else if (raiz->valor == "/") {
+            return izquierda / derecha;
+        } else if (raiz->valor == "^") {
+            return std::pow(izquierda, derecha);
+        }
+    }
+
+    return 0.0; // Valor predeterminado
 }
 
 int main() {
@@ -154,11 +179,19 @@ int main() {
                 pos = expresion_con_ans.find("ans", pos + 1);
             }
 
-            std::string postfix_expression = notacionFijaAPostfija(expresion_con_ans);
             try {
-                double result = resolverPostfija(postfix_expression, variables);
+                double result = resolverArbol(construirArbol(expresion_con_ans), variables);
                 ans = result; // Actualiza el valor de 'ans'
                 std::cout << "Resultado: " << result << std::endl;
+
+                // Construye y muestra el árbol de la última expresión evaluada
+                NodoExpresion* arbol = construirArbol(expresion_con_ans);
+                if (arbol) {
+                    std::cout << "Árbol de expresión:" << std::endl;
+                    imprimirArbol(arbol, 0);
+                } else {
+                    std::cout << "Error: Expresión no válida." << std::endl;
+                }
             } catch (const std::runtime_error& e) {
                 std::cout << "Error: Expresión no válida." << std::endl;
             }
@@ -166,7 +199,6 @@ int main() {
     }
 
     std::cout << "¡Hasta luego!" << std::endl;
-
 
     return 0;
 }
